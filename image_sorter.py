@@ -114,7 +114,7 @@ class ImageSortingWindow(gtk.Window):
     def process_key(self, keyname):
         if keyname.isalpha() and len(keyname) == 1:
             if keyname not in self.destinations:
-                d = self.directory_prompt()
+                d = self.directory_prompt(title="Please select a directory to associate with: [{0}]".format(keyname))
                 self.destinations[keyname.title()] = d
                 self.destinations[keyname.lower()] = d
             entry = self.entries[self.image_index]
