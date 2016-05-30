@@ -1,6 +1,6 @@
 import gtk
 from os.path import join, splitext, isfile, isdir, basename
-from os import listdir, remove
+from os import listdir, remove, walk
 from shutil import copy, move
 from re import compile
 
@@ -55,10 +55,13 @@ class ImageFileEntry(object):
     def commit(self):
         for dst in self.cp_dst_paths:
             copy(self.src_path, dst)
+            print("Copied {0} to {1}".format(self.src_path, dst))
         if self.mv_dst_path:
             move(self.src_path, self.mv_dst_path)
+            print("Moved {0} to {1}".format(self.src_path, self.mv_dst_path))
         elif self.rm:
             remove(self.src_path)
+            print("Deleted {0}".format(self.src_path))
 
 class ImageSortingWindow(gtk.Window):
     def __init__(self):
@@ -81,20 +84,23 @@ class ImageSortingWindow(gtk.Window):
 
         self.src_dir = self.directory_prompt()
 
-        if not self.src_dir: 
-            exit()
+        if not self.src_dir: exit()
 
         self.load_images()
 
-        if not self.entries:
-            exit()
+        if not self.entries: exit()
         self.show_all()
 
     def load_images(self):
         self.image_index = 0
         self.temp_w = 0
         self.temp_h = 0
-        self.entries = sorted([ImageFileEntry(join(self.src_dir, f)) for f in listdir(self.src_dir) if splitext(f)[1] in IMAGE_EXTENSIONS])
+        # self.entries = sorted([ImageFileEntry(join(self.src_dir, f)) for f in listdir(self.src_dir) if splitext(f)[1] in IMAGE_EXTENSIONS])
+        for root, subdirs, files in walk(self.src_dir):
+            for file in files:
+                if splitext(file)[1] in IMAGE_EXTENSIONS:
+                    self.entries.append(ImageFileEntry(join(root, file)))
+        self.entries.sort()
         if self.entries:
             self.update_image()
 
