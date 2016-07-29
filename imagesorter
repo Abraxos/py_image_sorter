@@ -1,3 +1,4 @@
+#!/usr/bin/python
 """An image sorting application based on GTK2 and Python"""
 from __future__ import print_function
 from os.path import join, splitext, isfile, isdir, basename
