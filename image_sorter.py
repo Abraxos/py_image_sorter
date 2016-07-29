@@ -1,3 +1,9 @@
+"""An image sorting application based on GTK2 and Python"""
+from __future__ import print_function
+from os.path import join, splitext, isfile, isdir, basename
+from os import remove, walk
+from shutil import copy, move
+from re import compile as regex_compile
 from gtk import STOCK_CANCEL # pylint: disable=E0611
 from gtk import STOCK_OPEN # pylint: disable=E0611
 from gtk import RESPONSE_CANCEL # pylint: disable=E0611
@@ -12,29 +18,33 @@ from gtk import gdk # pylint: disable=E0611
 from gtk import main_quit # pylint: disable=E0611
 from gtk import main # pylint: disable=E0611
 from gtk import FileChooserDialog # pylint: disable=E0611
-from os.path import join, splitext, isfile, isdir, basename
-from os import remove, walk
-from shutil import copy, move
-from re import compile as regex_compile
 
-IMAGE_EXTENSIONS = set(['.png','.jpg','.jpeg','.gif','.bmp'])
+IMAGE_EXTENSIONS = set(['.png', '.jpg', '.jpeg', '.gif', '.bmp'])
 REPEAT_FILE_PATT = regex_compile(r'.+\(([\d]+)\)(\..+)?')
 
+def close_application(self, widget, event, data=None): # pylint: disable=W0613
+    """Closes the GTK application"""
+    main_quit()
+    return False
+
 class ImageFileEntry(object):
+    """Represents an image file with move/copy/delete associations"""
     def __init__(self, src_path):
         self.src_path = src_path
         self.mv_dst_path = None
         self.cp_dst_paths = []
-        self.rm = False
+        self.remove = False
         print("Loaded: {0}".format(self.src_path))
     def mark_mv(self, mv_dst_path):
-        if isdir(mv_dst_path): mv_dst_path = join(mv_dst_path, basename(self.src_path))
+        """Marks the image for moving to a particular directory"""
+        if isdir(mv_dst_path):
+            mv_dst_path = join(mv_dst_path, basename(self.src_path))
         if isfile(mv_dst_path):
-            m = REPEAT_FILE_PATT.match(mv_dst_path)
+            mtch = REPEAT_FILE_PATT.match(mv_dst_path)
             filename, extension = splitext(mv_dst_path)
-            if m:
-                num = int(m.group(2)) + 1
-                mv_dst_path = "{0}{1}){2}".format(m.group(1), num, extension)
+            if mtch:
+                num = int(mtch.group(2)) + 1
+                mv_dst_path = "{0}{1}){2}".format(mtch.group(1), num, extension)
                 self.mark_mv(mv_dst_path)
             else:
                 mv_dst_path = "{0} (1){1}".format(filename, extension)
@@ -46,13 +56,15 @@ class ImageFileEntry(object):
             print("Will move to: {0}".format(mv_dst_path))
         print(self.mv_dst_path)
     def mark_cp(self, cp_dst_path):
-        if isdir(cp_dst_path): cp_dst_path = join(cp_dst_path, basename(self.src_path))
+        """Marks the image for copying to a particular directory"""
+        if isdir(cp_dst_path):
+            cp_dst_path = join(cp_dst_path, basename(self.src_path))
         if isfile(cp_dst_path):
-            m = REPEAT_FILE_PATT.match(cp_dst_path)
+            mtch = REPEAT_FILE_PATT.match(cp_dst_path)
             filename, extension = splitext(cp_dst_path)
-            if m:
-                num = int(m.group(2)) + 1
-                cp_dst_path = "{0}{1}){2}".format(m.group(1), num, extension)
+            if mtch:
+                num = int(mtch.group(2)) + 1
+                cp_dst_path = "{0}{1}){2}".format(mtch.group(1), num, extension)
                 self.mark_cp(cp_dst_path)
             else:
                 cp_dst_path = "{0} (1){1}".format(filename, extension)
@@ -62,27 +74,30 @@ class ImageFileEntry(object):
             print("Will copy to: {0}".format(cp_dst_path))
         print(self.cp_dst_paths)
     def toggle_rm(self):
-        self.rm = not self.rm
-        if self.rm:
+        """Marks the image for deletion or unmarks it"""
+        self.remove = not self.remove
+        if self.remove:
             print("Will delete: {0}".format(self.src_path))
         else:
             print("Will not delete: {0}".format(self.src_path))
     def commit(self):
+        """Moves, copies, and deletes the files as marked"""
         for dst in self.cp_dst_paths:
             copy(self.src_path, dst)
             print("Copied {0} to {1}".format(self.src_path, dst))
-        if self.rm:
+        if self.remove:
             remove(self.src_path)
             print("Deleted {0}".format(self.src_path))
         elif self.mv_dst_path:
             move(self.src_path, self.mv_dst_path)
             print("Moved {0} to {1}".format(self.src_path, self.mv_dst_path))
 
-class ImageSortingWindow(Window):
+class ImageSortingWindow(Window): # pylint: disable=R0902
+    """The window in which images are displayed and sorted"""
     def __init__(self):
         super(ImageSortingWindow, self).__init__(WINDOW_TOPLEVEL)
         self.set_title('Python Image Sorter')
-        self.set_size_request(800,600)
+        self.set_size_request(800, 600)
 
         self.src_dir = None
         self.entries = []
@@ -101,28 +116,31 @@ class ImageSortingWindow(Window):
 
         self.src_dir = self.directory_prompt()
 
-        if not self.src_dir: exit()
+        if not self.src_dir:
+            exit()
 
         self.load_images()
 
-        if not self.entries: exit()
+        if not self.entries:
+            exit()
         self.show_all()
 
     def load_images(self):
+        """Loads images from a given directory"""
         self.image_index = 0
         self.temp_w = 0
         self.temp_h = 0
         self.entries = []
-        # self.entries = sorted([ImageFileEntry(join(self.src_dir, f)) for f in listdir(self.src_dir) if splitext(f)[1] in IMAGE_EXTENSIONS])
         for root, _, files in walk(self.src_dir):
-            for f in files:
-                if splitext(f)[1] in IMAGE_EXTENSIONS:
-                    self.entries.append(ImageFileEntry(join(root, f)))
+            for image_file in files:
+                if splitext(image_file)[1] in IMAGE_EXTENSIONS:
+                    self.entries.append(ImageFileEntry(join(root, image_file)))
         self.entries.sort()
         if self.entries:
             self.update_image()
 
     def commit(self):
+        """Calls the commit function on every image"""
         for entry in self.entries:
             entry.commit()
         self.load_images()
@@ -130,12 +148,17 @@ class ImageSortingWindow(Window):
             exit()
 
     def process_key(self, keyname):
+        """Callback that gets executed every time a letter key is pressed"""
         if keyname.isalpha() and len(keyname) == 1:
             if keyname not in self.destinations:
-                d = self.directory_prompt(title="Please select a directory to associate with: [{0}]".format(keyname))
-                if not d: return
-                self.destinations[keyname.title()] = d
-                self.destinations[keyname.lower()] = d
+                directory = self.directory_prompt(title="Please select a "\
+                                                        "directory to associate"\
+                                                        " with: [{0}]"
+                                                  .format(keyname))
+                if not directory:
+                    return
+                self.destinations[keyname.title()] = directory
+                self.destinations[keyname.lower()] = directory
             entry = self.entries[self.image_index]
             if keyname.istitle():
                 entry.mark_cp(self.destinations[keyname])
@@ -144,10 +167,12 @@ class ImageSortingWindow(Window):
                 self.next_image()
 
     def delete(self):
+        """Marks an image for deletion"""
         self.entries[self.image_index].toggle_rm()
         self.next_image()
 
     def on_key_function(self, widget, event): # pylint: disable=W0613
+        """Processes key-presses"""
         keyname = gdk.keyval_name(event.keyval)
         print("Key %s (%d) was pressed" % (keyname, event.keyval))
 
@@ -163,25 +188,30 @@ class ImageSortingWindow(Window):
             self.process_key(keyname)
 
     def on_image_resize(self, widget, event): # pylint: disable=W0613
+        """Rescales the image in response to resize events"""
         self.scale_to_fit()
 
     def scale_to_fit(self, force=False):
+        """Scales the image to fit the window"""
         image_size = (self.pixbuf.get_width(), self.pixbuf.get_height())
         allocation = self.box.get_allocation()
-        allocation_size = (allocation.width, allocation.height)
-        if force or allocation_size[0] != self.temp_w or allocation_size[1] != self.temp_h:
-            self.temp_w = allocation_size[0]
-            self.temp_h = allocation_size[1]
-            width_scale = float(allocation_size[0]) / float(image_size[0])
-            height_scale = float(allocation_size[1]) / float(image_size[1])
-            s = min(width_scale, height_scale)
-            w = int(image_size[0] * s)
-            h = int(image_size[1] * s)
+        alc_size = (allocation.width, allocation.height)
+        if force or alc_size[0] != self.temp_w or alc_size[1] != self.temp_h:
+            self.temp_w = alc_size[0]
+            self.temp_h = alc_size[1]
+            width_scale = float(alc_size[0]) / float(image_size[0])
+            height_scale = float(alc_size[1]) / float(image_size[1])
+            scale = min(width_scale, height_scale)
+            width = int(image_size[0] * scale)
+            height = int(image_size[1] * scale)
 
-            pixbuf = self.pixbuf.scale_simple(w-1, h-1, gdk.INTERP_BILINEAR)
+            pixbuf = self.pixbuf.scale_simple(width-1,
+                                              height-1,
+                                              gdk.INTERP_BILINEAR)
             self.image.set_from_pixbuf(pixbuf)
 
     def update_image(self):
+        """Updates the image displayed in the window"""
         filename = self.entries[self.image_index].src_path
         self.set_title('Python Image Sorter: ' + filename)
         self.pixbuf = gdk.pixbuf_new_from_file(filename)
@@ -189,25 +219,24 @@ class ImageSortingWindow(Window):
         self.scale_to_fit(force=True)
 
     def next_image(self):
+        """Switches to the next image in the list"""
         if self.image_index < len(self.entries) - 1:
             self.image_index += 1
             self.update_image()
 
     def prev_image(self):
+        """Switches to the previous image in the list"""
         if self.image_index > 0:
             self.image_index -= 1
             self.update_image()
 
-    def close_application(self, widget, event, data=None): # pylint: disable=W0613
-        main_quit()
-        return False
-
     def directory_prompt(self, title="Please choose a folder"):
+        """Prompts the user for a directory"""
         dialog = FileChooserDialog(title, self,
-            FILE_CHOOSER_ACTION_SELECT_FOLDER,
-            (STOCK_CANCEL,RESPONSE_CANCEL,
-             STOCK_OPEN,
-             RESPONSE_OK))
+                                   FILE_CHOOSER_ACTION_SELECT_FOLDER,
+                                   (STOCK_CANCEL, RESPONSE_CANCEL,
+                                    STOCK_OPEN,
+                                    RESPONSE_OK))
         dialog.set_default_size(800, 400)
 
         response = dialog.run()
@@ -223,7 +252,7 @@ class ImageSortingWindow(Window):
         return False
 
 if __name__ == "__main__":
-    image_sorter = ImageSortingWindow()
-    if image_sorter:
-        image_sorter.connect("delete-event", main_quit)
+    IMAGE_SORTER = ImageSortingWindow()
+    if IMAGE_SORTER:
+        IMAGE_SORTER.connect("delete-event", main_quit)
         main()
