@@ -4,7 +4,13 @@ An image sorting program written in Python using PyGTK2
 
 ## Requirements
 
-This program requires that you have PyGTK2 installed. Aside from that it uses standard Python libraries. This program has not been tested on Windows. I have no idea how to make it work there so don't ask, although feel free to contribute to the project if you want to make it work, but not at the cost of Linux support.
+This program requires that you have PyGTK2 installed. Aside from that it uses standard Python libraries. This program has not been tested on Windows. I have no idea how to make it work there so don't ask. Do feel free to contribute to the project if you want to make it work on Windows, but not at the cost of Linux support.
+
+The requirement to install on Debian is:
+
+```
+$ sudo apt-get install python-gtk2
+```
 
 ## Usage
 

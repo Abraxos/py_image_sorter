@@ -1,11 +1,24 @@
-import gtk
+from gtk import STOCK_CANCEL # pylint: disable=E0611
+from gtk import STOCK_OPEN # pylint: disable=E0611
+from gtk import RESPONSE_CANCEL # pylint: disable=E0611
+from gtk import RESPONSE_OK # pylint: disable=E0611
+from gtk import FILE_CHOOSER_ACTION_SELECT_FOLDER # pylint: disable=E0611
+from gtk import WINDOW_TOPLEVEL # pylint: disable=E0611
+from gtk import POLICY_AUTOMATIC # pylint: disable=E0611
+from gtk import Window # pylint: disable=E0611
+from gtk import Image # pylint: disable=E0611
+from gtk import ScrolledWindow # pylint: disable=E0611
+from gtk import gdk # pylint: disable=E0611
+from gtk import main_quit # pylint: disable=E0611
+from gtk import main # pylint: disable=E0611
+from gtk import FileChooserDialog # pylint: disable=E0611
 from os.path import join, splitext, isfile, isdir, basename
-from os import listdir, remove, walk
+from os import remove, walk
 from shutil import copy, move
-from re import compile
+from re import compile as regex_compile
 
 IMAGE_EXTENSIONS = set(['.png','.jpg','.jpeg','.gif','.bmp'])
-REPEAT_FILE_PATT = compile('.+\(([\d]+)\)(\..+)?')
+REPEAT_FILE_PATT = regex_compile(r'.+\(([\d]+)\)(\..+)?')
 
 class ImageFileEntry(object):
     def __init__(self, src_path):
@@ -31,6 +44,7 @@ class ImageFileEntry(object):
                 self.cp_dst_paths.remove(mv_dst_path)
             self.mv_dst_path = mv_dst_path
             print("Will move to: {0}".format(mv_dst_path))
+        print(self.mv_dst_path)
     def mark_cp(self, cp_dst_path):
         if isdir(cp_dst_path): cp_dst_path = join(cp_dst_path, basename(self.src_path))
         if isfile(cp_dst_path):
@@ -46,6 +60,7 @@ class ImageFileEntry(object):
         elif cp_dst_path not in self.cp_dst_paths:
             self.cp_dst_paths.append(cp_dst_path)
             print("Will copy to: {0}".format(cp_dst_path))
+        print(self.cp_dst_paths)
     def toggle_rm(self):
         self.rm = not self.rm
         if self.rm:
@@ -56,16 +71,16 @@ class ImageFileEntry(object):
         for dst in self.cp_dst_paths:
             copy(self.src_path, dst)
             print("Copied {0} to {1}".format(self.src_path, dst))
-        if self.mv_dst_path:
-            move(self.src_path, self.mv_dst_path)
-            print("Moved {0} to {1}".format(self.src_path, self.mv_dst_path))
-        elif self.rm:
+        if self.rm:
             remove(self.src_path)
             print("Deleted {0}".format(self.src_path))
+        elif self.mv_dst_path:
+            move(self.src_path, self.mv_dst_path)
+            print("Moved {0} to {1}".format(self.src_path, self.mv_dst_path))
 
-class ImageSortingWindow(gtk.Window):
+class ImageSortingWindow(Window):
     def __init__(self):
-        super(ImageSortingWindow, self).__init__(gtk.WINDOW_TOPLEVEL)
+        super(ImageSortingWindow, self).__init__(WINDOW_TOPLEVEL)
         self.set_title('Python Image Sorter')
         self.set_size_request(800,600)
 
@@ -73,11 +88,13 @@ class ImageSortingWindow(gtk.Window):
         self.entries = []
         self.destinations = {}
 
-        self.image = gtk.Image()
+        self.image = Image()
         self.image.connect('expose-event', self.on_image_resize)
+        self.pixbuf = None
+        self.temp_w, self.temp_h = None, None
 
-        self.box = gtk.ScrolledWindow()
-        self.box.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        self.box = ScrolledWindow()
+        self.box.set_policy(POLICY_AUTOMATIC, POLICY_AUTOMATIC)
         self.box.add(self.image)
         self.add(self.box)
         self.connect('key_press_event', self.on_key_function)
@@ -95,11 +112,12 @@ class ImageSortingWindow(gtk.Window):
         self.image_index = 0
         self.temp_w = 0
         self.temp_h = 0
+        self.entries = []
         # self.entries = sorted([ImageFileEntry(join(self.src_dir, f)) for f in listdir(self.src_dir) if splitext(f)[1] in IMAGE_EXTENSIONS])
-        for root, subdirs, files in walk(self.src_dir):
-            for file in files:
-                if splitext(file)[1] in IMAGE_EXTENSIONS:
-                    self.entries.append(ImageFileEntry(join(root, file)))
+        for root, _, files in walk(self.src_dir):
+            for f in files:
+                if splitext(f)[1] in IMAGE_EXTENSIONS:
+                    self.entries.append(ImageFileEntry(join(root, f)))
         self.entries.sort()
         if self.entries:
             self.update_image()
@@ -115,6 +133,7 @@ class ImageSortingWindow(gtk.Window):
         if keyname.isalpha() and len(keyname) == 1:
             if keyname not in self.destinations:
                 d = self.directory_prompt(title="Please select a directory to associate with: [{0}]".format(keyname))
+                if not d: return
                 self.destinations[keyname.title()] = d
                 self.destinations[keyname.lower()] = d
             entry = self.entries[self.image_index]
@@ -128,8 +147,8 @@ class ImageSortingWindow(gtk.Window):
         self.entries[self.image_index].toggle_rm()
         self.next_image()
 
-    def on_key_function(self, widget, event):
-        keyname = gtk.gdk.keyval_name(event.keyval)
+    def on_key_function(self, widget, event): # pylint: disable=W0613
+        keyname = gdk.keyval_name(event.keyval)
         print("Key %s (%d) was pressed" % (keyname, event.keyval))
 
         if keyname == 'Right':
@@ -143,7 +162,7 @@ class ImageSortingWindow(gtk.Window):
         else:
             self.process_key(keyname)
 
-    def on_image_resize(self, widget, event):
+    def on_image_resize(self, widget, event): # pylint: disable=W0613
         self.scale_to_fit()
 
     def scale_to_fit(self, force=False):
@@ -159,12 +178,13 @@ class ImageSortingWindow(gtk.Window):
             w = int(image_size[0] * s)
             h = int(image_size[1] * s)
 
-            pixbuf = self.pixbuf.scale_simple(w-1, h-1, gtk.gdk.INTERP_BILINEAR)
+            pixbuf = self.pixbuf.scale_simple(w-1, h-1, gdk.INTERP_BILINEAR)
             self.image.set_from_pixbuf(pixbuf)
 
     def update_image(self):
         filename = self.entries[self.image_index].src_path
-        self.pixbuf = gtk.gdk.pixbuf_new_from_file(filename)
+        self.set_title('Python Image Sorter: ' + filename)
+        self.pixbuf = gdk.pixbuf_new_from_file(filename)
         self.image.set_from_pixbuf(self.pixbuf)
         self.scale_to_fit(force=True)
 
@@ -172,38 +192,38 @@ class ImageSortingWindow(gtk.Window):
         if self.image_index < len(self.entries) - 1:
             self.image_index += 1
             self.update_image()
-            
+
     def prev_image(self):
         if self.image_index > 0:
             self.image_index -= 1
             self.update_image()
 
-    def close_application(self, widget, event, data=None):
-        gtk.main_quit()
+    def close_application(self, widget, event, data=None): # pylint: disable=W0613
+        main_quit()
         return False
 
     def directory_prompt(self, title="Please choose a folder"):
-        dialog = gtk.FileChooserDialog(title, self,
-            gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER,
-            (gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL,
-             gtk.STOCK_OPEN,
-             gtk.RESPONSE_OK))
+        dialog = FileChooserDialog(title, self,
+            FILE_CHOOSER_ACTION_SELECT_FOLDER,
+            (STOCK_CANCEL,RESPONSE_CANCEL,
+             STOCK_OPEN,
+             RESPONSE_OK))
         dialog.set_default_size(800, 400)
 
         response = dialog.run()
-        if response == gtk.RESPONSE_OK:
+        if response == RESPONSE_OK:
             print("Select clicked")
             print("Folder selected: " + dialog.get_filename())
             directory = dialog.get_filename()
 
             dialog.destroy()
             return directory
-        
+
         dialog.destroy()
         return False
 
 if __name__ == "__main__":
     image_sorter = ImageSortingWindow()
     if image_sorter:
-        image_sorter.connect("delete-event", gtk.main_quit)
-        gtk.main()
+        image_sorter.connect("delete-event", main_quit)
+        main()
