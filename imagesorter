@@ -2,7 +2,7 @@
 """An image sorting application based on GTK2 and Python"""
 from __future__ import print_function
 from os.path import join, splitext, isfile, isdir, basename
-from os import remove, walk
+from os import remove, walk, chdir, makedirs
 from shutil import copy, move
 from re import compile as regex_compile
 from gtk import STOCK_CANCEL # pylint: disable=E0611
@@ -19,6 +19,7 @@ from gtk import gdk # pylint: disable=E0611
 from gtk import main_quit # pylint: disable=E0611
 from gtk import main # pylint: disable=E0611
 from gtk import FileChooserDialog # pylint: disable=E0611
+from tabulate import tabulate # pylint: disable=E0611
 
 IMAGE_EXTENSIONS = set(['.png', '.jpg', '.jpeg', '.gif', '.bmp'])
 REPEAT_FILE_PATT = regex_compile(r'.+\(([\d]+)\)(\..+)?')
@@ -35,7 +36,7 @@ class ImageFileEntry(object):
         self.mv_dst_path = None
         self.cp_dst_paths = []
         self.remove = False
-        print("Loaded: {0}".format(self.src_path))
+
     def mark_mv(self, mv_dst_path):
         """Marks the image for moving to a particular directory"""
         if isdir(mv_dst_path):
@@ -54,8 +55,10 @@ class ImageFileEntry(object):
             if mv_dst_path in self.cp_dst_paths:
                 self.cp_dst_paths.remove(mv_dst_path)
             self.mv_dst_path = mv_dst_path
-            print("Will move to: {0}".format(mv_dst_path))
-        print(self.mv_dst_path)
+            # print("Will move to: {0}".format(mv_dst_path))
+        # print(self.mv_dst_path)
+        self.print_info()
+
     def mark_cp(self, cp_dst_path):
         """Marks the image for copying to a particular directory"""
         if isdir(cp_dst_path):
@@ -72,15 +75,32 @@ class ImageFileEntry(object):
                 self.mark_cp(cp_dst_path)
         elif cp_dst_path not in self.cp_dst_paths:
             self.cp_dst_paths.append(cp_dst_path)
-            print("Will copy to: {0}".format(cp_dst_path))
-        print(self.cp_dst_paths)
+            # print("Will copy to: {0}".format(cp_dst_path))
+        # print(self.cp_dst_paths)
+        self.print_info()
+
+    def info_tbl(self):
+        headers = ('Action','Destination')
+        table = [('COPY:',d) for d in self.cp_dst_paths]
+        if self.mv_dst_path:
+            table.append(('MOVE:', self.mv_dst_path))
+        if self.remove:
+            table.append(('DELETE','NONE'))
+        return headers, table
+
+    def print_info(self):
+        h,t = self.info_tbl()
+        print(tabulate(t, h, tablefmt='psql'))
+
     def toggle_rm(self):
         """Marks the image for deletion or unmarks it"""
         self.remove = not self.remove
-        if self.remove:
-            print("Will delete: {0}".format(self.src_path))
-        else:
-            print("Will not delete: {0}".format(self.src_path))
+        # if self.remove:
+        #     print("Will delete: {0}".format(self.src_path))
+        # else:
+        #     print("Will not delete: {0}".format(self.src_path))
+        self.print_info()
+
     def commit(self):
         """Moves, copies, and deletes the files as marked"""
         for dst in self.cp_dst_paths:
@@ -117,6 +137,23 @@ class ImageSortingWindow(Window): # pylint: disable=R0902
 
         self.src_dir = self.directory_prompt()
 
+        # if there is a .image_paths file in the cwd then load destinations template
+        if isfile('.image_paths'):
+            with open('.image_paths') as image_paths_file:
+                for line in image_paths_file:
+                    keyname = line[0].lower()
+                    directory = line[2:-1]
+                    self.destinations[keyname.title()] = directory
+                    self.destinations[keyname.lower()] = directory
+
+        chdir(self.src_dir)
+
+        # If any directions don't exist, create them
+        for keyname in self.destinations:
+            dst = self.destinations[keyname]
+            if not isdir(dst):
+                makedirs(dst)
+
         if not self.src_dir:
             exit()
 
@@ -148,6 +185,11 @@ class ImageSortingWindow(Window): # pylint: disable=R0902
         if not self.entries:
             exit()
 
+    def print_legend(self):
+        headers = ('Key', 'Destination')
+        table = [(k,self.destinations[k]) for k in self.destinations if k.istitle()]
+        print(tabulate(table, headers, tablefmt='psql'))
+
     def process_key(self, keyname):
         """Callback that gets executed every time a letter key is pressed"""
         if keyname.isalpha() and len(keyname) == 1:
@@ -166,6 +208,7 @@ class ImageSortingWindow(Window): # pylint: disable=R0902
             else:
                 entry.mark_mv(self.destinations[keyname])
                 self.next_image()
+            self.print_legend()
 
     def delete(self):
         """Marks an image for deletion"""
@@ -175,7 +218,7 @@ class ImageSortingWindow(Window): # pylint: disable=R0902
     def on_key_function(self, widget, event): # pylint: disable=W0613
         """Processes key-presses"""
         keyname = gdk.keyval_name(event.keyval)
-        print("Key %s (%d) was pressed" % (keyname, event.keyval))
+        # print("Key %s (%d) was pressed" % (keyname, event.keyval))
 
         if keyname == 'Right':
             self.next_image()
@@ -214,7 +257,8 @@ class ImageSortingWindow(Window): # pylint: disable=R0902
     def update_image(self):
         """Updates the image displayed in the window"""
         filename = self.entries[self.image_index].src_path
-        self.set_title('Python Image Sorter: ' + filename)
+        progress = ' ({0}/{1})'.format(self.image_index + 1, len(self.entries))
+        self.set_title('Python Image Sorter: ' + filename + progress)
         self.pixbuf = gdk.pixbuf_new_from_file(filename)
         self.image.set_from_pixbuf(self.pixbuf)
         self.scale_to_fit(force=True)
