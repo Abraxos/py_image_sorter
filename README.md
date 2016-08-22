@@ -12,6 +12,12 @@ The requirement to install on Debian is:
 $ sudo apt-get install python-gtk2
 ```
 
+The program also requires a python package called `tabulate` for printing out results and the legend:
+
+```
+$ sudo pip install tabulate
+```
+
 ## Usage
 
 ### Launching the Program
@@ -19,7 +25,7 @@ $ sudo apt-get install python-gtk2
 Simply execute this from the commandline:
 
 ```
-$ python image_sorter.py
+$ ./image_sorter
 ```
 
 You will then be prompted for a directory to scan for images. If there are no images in the directory the program will simply close.
@@ -36,3 +42,15 @@ This program was designed to make it extremely easy to sort a directory of image
   + You can choose to move images to different directories than before.
   + You can add new destinations for the file to be copied to.
 + You can mark images for deletion by pressing the delete key, pressing it a second time on the same image will mark it to not be deleted.
+
+The program will search for a file in the same directory as the executable called `.image_paths` of the format:
+
+```
+a ../sorted/art
+b ../sorted/backgrounds
+p ../sorted/photographs
+```
+
+The first letter on each line should be the letter key to be associated with the directory that follows (separated by a space). Relative addressing is allowed, but will be applied to the directory that is being sorted. The program will create the directory if it doesn't exist. I strongly advise using the `../sorted/` approach because it will create a sorted directory next to every directory that you sort through.
+
+This effectively allows the user to save their sorting directory configuration from different runs of the program and to alter it as needed.
